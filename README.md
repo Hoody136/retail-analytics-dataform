@@ -1,4 +1,4 @@
-# Retail Analytics Platform
+# From Hours to Twenty Minutes: Rebuilding Commercial Reporting for a Luxury Retailer
 
 A modern analytics engineering project for a luxury retail brand, built in **Dataform** (Google's native BigQuery transformation tool) using dbt-compatible patterns: modular SQL, source-to-mart layering, dependency management, and automated assertions.
 
