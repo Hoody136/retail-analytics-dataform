@@ -49,23 +49,24 @@ Order-level costs (shipping, tax, discounts, refunds) apportioned down to SKU le
 
 ## Project Structure
 
-definitions/
-├── staging/
-│   ├── stg_order.sqlx                    # Shopify + sample sale orders, cleaned & unioned
-│   ├── stg_inventory.sqlx                # Stock levels by SKU and location
-│   ├── stg_products.sqlx                 # Product master with live pricing
-│   ├── stg_raw_range_sheet.sqlx          # Enriched product attributes (costs, RRP, delivery)
-│   └── stg_dim_date.sqlx                 # 4-4-5 ISO calendar (2024–2034)
-├── intermediate/
-│   ├── int_orders_filled.sqlx            # Order-level cost allocation logic
-│   ├── int_sku_sales_rolling.sqlx        # PW, PW-1, PWLY, P-4W, P-5-8W, YTD, YTD LY aggregations
-│   └── int_sample_sales_enriched.sqlx    # Sample sale data enriched with product master
-└── marts/
-├── dim_products.sqlx                 # Product dimension (range sheet + live price)
-├── fct_order_lines.sqlx              # Order line facts with all KPIs
-├── fct_inventory.sqlx                # Inventory snapshot joined to product
-├── mart_sku_performance.sqlx         # SKU-level trade metrics (lifetime + rolling)
-└── mart_inventory_enriched.sqlx      # Stock + sales unified for merchandising
+**Staging** (`definitions/staging/`)
+- `stg_order.sqlx` — Shopify + sample sale orders, cleaned & unioned
+- `stg_inventory.sqlx` — Stock levels by SKU and location
+- `stg_products.sqlx` — Product master with live pricing
+- `stg_raw_range_sheet.sqlx` — Enriched product attributes (costs, RRP, delivery)
+- `stg_dim_date.sqlx` — 4-4-5 ISO calendar (2024–2034)
+
+**Intermediate** (`definitions/intermediate/`)
+- `int_orders_filled.sqlx` — Order-level cost allocation logic
+- `int_sku_sales_rolling.sqlx` — PW, PW-1, PWLY, P-4W, P-5-8W, YTD, YTD LY aggregations
+- `int_sample_sales_enriched.sqlx` — Sample sale data enriched with product master
+
+**Marts** (`definitions/marts/`)
+- `dim_products.sqlx` — Product dimension (range sheet + live price)
+- `fct_order_lines.sqlx` — Order line facts with all KPIs
+- `fct_inventory.sqlx` — Inventory snapshot joined to product
+- `mart_sku_performance.sqlx` — SKU-level trade metrics (lifetime + rolling)
+- `mart_inventory_enriched.sqlx` — Stock + sales unified for merchandising
 
 
 ---
