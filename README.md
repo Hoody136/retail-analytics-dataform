@@ -124,5 +124,4 @@ I install the commercial planning, forecasting and reporting systems that make r
 **[hoodoperations.com](https://hoodoperations.com)**  
 **joseph@hoodoperations.com**
 
-**[hoodoperations.com](https://hoodoperations.com)**  
-**joseph@hoodoperations.com**
+
