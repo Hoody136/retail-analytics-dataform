@@ -73,8 +73,11 @@ Order-level costs (shipping, tax, discounts, refunds) apportioned down to SKU le
 
 ## Data Lineage
 
-<!-- TODO: Add Dataform lineage screenshot to assets/lineage.png, then uncomment below -->
-<!-- ![Dataform Lineage](assets/lineage.png) -->
+Full pipeline from raw Shopify exports to consumption-ready marts:
+
+![Dataform Lineage 1](assets/lineage-1.png)
+
+![Dataform Lineage 2](assets/lineage-2.png)
 
 ---
 
