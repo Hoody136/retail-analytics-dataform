@@ -1,0 +1,95 @@
+config {
+  type: "view",
+  schema: "staging",
+  description: "Cleaned Shopify orders unioned with sample sale data. One row per order line item.",
+  columns: {
+    order_id: "Unique order identifier",
+    created_at: "Timestamp when order was placed",
+    financial_status: "Payment status: paid, refunded, partially_refunded",
+    lineitem_sku: "Product SKU at time of order",
+    lineitem_quantity: "Units ordered",
+    lineitem_price: "Price per unit before discounts",
+    lineitem_discount: "Discount allocated to this line item",
+    currency: "Transaction currency"
+  }
+}
+
+-- ============================================================
+-- STG_ORDER
+-- Purpose: Clean and unify Shopify + Sample Sale order data
+-- Logic:
+--   1. Clean Shopify raw export (standard e-commerce data)
+--   2. Clean Sample Sale raw export (event-based liquidation sales)
+--   3. Stack both with UNION ALL for unified reporting
+-- ============================================================
+
+WITH shopify_raw AS (
+  SELECT * FROM ${ref("raw_orders_table")}
+),
+
+sample_sale_raw AS (
+  SELECT * FROM ${ref("raw_samplesale_table")}
+),
+
+shopify_cleaned AS (
+  SELECT
+    SAFE_CAST(`Id` AS STRING) AS order_id,
+    `Name` AS order_number,
+    SAFE_CAST(`Created at` AS TIMESTAMP) AS created_at,
+    `Financial Status` AS financial_status,
+    `Fulfillment Status` AS fulfillment_status,
+    `Currency` AS currency,
+    SAFE_CAST(`Subtotal` AS FLOAT64) AS subtotal,
+    SAFE_CAST(`Shipping` AS FLOAT64) AS shipping,
+    SAFE_CAST(`Taxes` AS FLOAT64) AS taxes,
+    SAFE_CAST(`Total` AS FLOAT64) AS total,
+    SAFE_CAST(`Discount Amount` AS FLOAT64) AS discount_amount,
+    `Discount Code` AS discount_code,
+    SAFE_CAST(`Lineitem quantity` AS INT64) AS lineitem_quantity,
+    `Lineitem name` AS product_name,
+    SAFE_CAST(`Lineitem price` AS FLOAT64) AS lineitem_price,
+    SAFE_CAST(`Lineitem compare at price` AS FLOAT64) AS lineitem_compare_at_price,
+    `Lineitem sku` AS lineitem_sku,
+    SAFE_CAST(`Lineitem discount` AS FLOAT64) AS lineitem_discount,
+    `Lineitem fulfillment status` AS lineitem_fulfillment_status,
+    SAFE_CAST(`Refunded Amount` AS FLOAT64) AS refunded_amount,
+    SAFE_CAST(`Cancelled at` AS TIMESTAMP) AS cancelled_at,
+    -- Shopify has no execution cost; default to 0
+    0.0 AS execution_cost,
+    'shopify' AS source_platform
+  FROM shopify_raw
+  WHERE financial_status IS NOT NULL
+),
+
+sample_sale_cleaned AS (
+  SELECT
+    -- Generate UUID for sample sales that lack order IDs
+    COALESCE(`Name`, CONCAT('SS-', CAST(GENERATE_UUID() AS STRING))) AS order_number,
+    SAFE_CAST(`Created at` AS TIMESTAMP) AS created_at,
+    'paid' AS financial_status,
+    'fulfilled' AS fulfillment_status,
+    'GBP' AS currency,
+    SAFE_CAST(`Subtotal` AS FLOAT64) AS subtotal,
+    0 AS shipping,
+    SAFE_CAST(`Taxes` AS FLOAT64) AS taxes,
+    SAFE_CAST(`Total` AS FLOAT64) AS total,
+    0 AS discount_amount,
+    NULL AS discount_code,
+    SAFE_CAST(`Lineitem quantity` AS INT64) AS lineitem_quantity,
+    `Lineitem name` AS product_name,
+    SAFE_CAST(`Lineitem price` AS FLOAT64) AS lineitem_price,
+    NULL AS lineitem_compare_at_price,
+    `Lineitem sku` AS lineitem_sku,
+    0 AS lineitem_discount,
+    'fulfilled' AS lineitem_fulfillment_status,
+    0 AS refunded_amount,
+    NULL AS cancelled_at,
+    SAFE_CAST(`Lineitem Additional Sample Sale Execution Costs` AS FLOAT64) AS execution_cost,
+    'sample_sale' AS source_platform
+  FROM sample_sale_raw
+)
+
+-- Stack both sources for unified reporting
+SELECT * FROM shopify_cleaned
+UNION ALL
+SELECT * FROM sample_sale_cleaned
