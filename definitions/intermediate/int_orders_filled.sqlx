@@ -1,0 +1,130 @@
+config {
+  type: "table",
+  schema: "intermediate",
+  description: "Order-level costs (shipping, tax, discounts, refunds) apportioned down to line-item level for true SKU-level margin analysis.",
+  columns: {
+    order_id: "Order identifier",
+    lineitem_sku: "Product SKU",
+    lineitem_gross_sales: "Gross sales before any discounts",
+    lineitem_netsales: "Net sales after discounts, before returns",
+    lineitem_discount: "Discount allocated to this line item",
+    lineitem_shipping: "Shipping cost apportioned to this line item",
+    lineitem_tax: "Tax apportioned to this line item",
+    lineitem_refund: "Refund amount apportioned to this line item",
+    selling_price_per_unit: "Actual price paid per unit after discounts"
+  }
+}
+
+-- ============================================================
+-- INT_ORDERS_FILLED
+-- Purpose: Allocate order-level costs to line-item level
+-- Why this matters:
+--   Shopify gives you order-level shipping and discounts.
+--   But you need SKU-level profitability.
+--   This model apportions costs proportionally by line-item value.
+-- ============================================================
+
+WITH raw_orders AS (
+  SELECT * FROM ${ref("stg_order")}
+),
+
+-- STEP 1: Order headers (one row per order, for allocation ratios)
+order_headers AS (
+  SELECT
+    order_number,
+    subtotal,
+    discount_amount,
+    shipping,
+    taxes,
+    refunded_amount,
+    total,
+    -- Discount percentage at order level
+    SAFE_DIVIDE(
+      COALESCE(discount_amount, 0),
+      NULLIF(COALESCE(subtotal, 0) + COALESCE(discount_amount, 0), 0)
+    ) AS lineitem_discount_percentage
+  FROM raw_orders
+  GROUP BY 1, 2, 3, 4, 5, 6, 7
+),
+
+-- STEP 2: Glue headers back to lines and populate missing values
+base_lines AS (
+  SELECT
+    lines.order_number,
+    lines.created_at,
+    lines.lineitem_quantity,
+    lines.product_name,
+    lines.lineitem_price,
+    lines.lineitem_compare_at_price,
+    lines.lineitem_sku,
+    lines.lineitem_fulfillment_status,
+    lines.currency,
+    lines.source_platform,
+    lines.execution_cost,
+    
+    -- Allocate header-level discount to line items
+    CASE
+      WHEN COALESCE(headers.discount_amount, 0) > 0 
+        AND COALESCE(lines.lineitem_discount, 0) = 0 
+      THEN (lines.lineitem_price * headers.lineitem_discount_percentage) * lines.lineitem_quantity
+      ELSE COALESCE(lines.lineitem_discount, 0)
+    END AS lineitem_discount,
+    
+    -- Pull through header values for allocation
+    headers.subtotal,
+    headers.shipping,
+    headers.taxes,
+    headers.refunded_amount,
+    headers.total
+    
+  FROM raw_orders AS lines
+  LEFT JOIN order_headers AS headers
+    ON lines.order_number = headers.order_number
+),
+
+-- STEP 3: Core sales metrics
+sales_calculations AS (
+  SELECT
+    *,
+    -- Gross Sales (Original Price * Qty)
+    (lineitem_price * lineitem_quantity) AS lineitem_gross_sales,
+    
+    -- Net Sales (Gross Sales minus allocated discount)
+    ((lineitem_price * lineitem_quantity) - COALESCE(lineitem_discount, 0)) AS lineitem_netsales,
+    
+    -- Actual Selling Price Per Unit
+    SAFE_DIVIDE(
+      ((lineitem_price * lineitem_quantity) - COALESCE(lineitem_discount, 0)),
+      lineitem_quantity
+    ) AS selling_price_per_unit
+    
+  FROM base_lines
+),
+
+-- STEP 4: First-wave allocations (shipping and tax proportional to line value)
+cost_allocations AS (
+  SELECT
+    *,
+    -- Apportion shipping by line-item share of subtotal
+    SAFE_DIVIDE(COALESCE(shipping, 0), NULLIF(subtotal, 0)) 
+      * lineitem_netsales AS lineitem_shipping,
+    
+    -- Apportion tax by line-item share of subtotal  
+    SAFE_DIVIDE(COALESCE(taxes, 0), NULLIF(subtotal, 0))
+      * lineitem_netsales AS lineitem_tax
+      
+  FROM sales_calculations
+),
+
+-- STEP 5: Final-wave allocations (refunds proportional to net sales)
+final AS (
+  SELECT
+    *,
+    -- Apportion refunds by line-item share of order total
+    SAFE_DIVIDE(COALESCE(refunded_amount, 0), NULLIF(total, 0))
+      * lineitem_netsales AS lineitem_refund
+      
+  FROM cost_allocations
+)
+
+SELECT * FROM final
