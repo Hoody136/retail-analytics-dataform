@@ -25,7 +25,7 @@ Built a governed, self-service analytics platform the whole team can run:
 
 - **Raw Data:** Shopify CSV exports
 - **Data Warehouse:** Google BigQuery
-- **Transformation:** Dataform (dbt-compatible patterns, BigQuery-native, no subscription overhead)
+- **Transformation:** Dataform (https://cloud.google.com/dataform, dbt-compatible patterns, BigQuery-native, no subscription overhead)
 - **Visualization:** Looker Studio
 - **Planning:** Google Sheets (connected to mart tables)
 
